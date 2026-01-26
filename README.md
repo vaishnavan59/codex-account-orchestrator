@@ -18,7 +18,17 @@ cao add accountA
 cao add accountB
 ```
 
-The first time you run Codex for an account, it will prompt you to log in.
+`cao add` starts OAuth login by default. Use `--no-login` to skip:
+
+```bash
+cao add accountA --no-login
+```
+
+If you prefer device auth:
+
+```bash
+cao add accountA --device-auth
+```
 
 ### Set default account
 
@@ -29,13 +39,19 @@ cao use accountA
 ### Run with fallback
 
 ```bash
-cao run -- codex
+cao run
 ```
 
 To pass arguments to Codex, put them after `--`:
 
 ```bash
-cao run -- codex exec "summarize README"
+cao run -- exec "summarize README"
+```
+
+To recheck all accounts when everyone is quota-limited, use multiple passes:
+
+```bash
+cao run --max-passes 2 --retry-delay 5
 ```
 
 ### Run a specific account (no fallback)
@@ -57,10 +73,9 @@ cao --data-dir /path/to/data run -- codex
 - A `config.toml` is created with:
   - `cli_auth_credentials_store = "file"`
   - `preferred_auth_method = "chatgpt"`
-- On quota errors (detected via output keywords), the CLI re-runs Codex with the next account.
+- On quota errors (detected via output keywords), the CLI re-runs Codex with the next account and can recheck all accounts for a configurable number of passes.
 
 ## Notes
 
 - Fallback requires capturing output; this may make Codex detect a non-TTY stdout. If you want a pure TTY session, use `--no-fallback`.
 - The quota detector is keyword-based and can be extended in `src/constants.ts`.
-
