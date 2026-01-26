@@ -1,16 +1,20 @@
 #!/usr/bin/env node
 
 import { Command } from "commander";
+import fs from "fs";
+import path from "path";
 import {
   addAccount,
   ensureAccountConfig,
   ensureAccountDir,
   ensureBaseDir,
   getAccountOrder,
+  removeAccount,
   setDefaultAccount,
   validateAccountName
 } from "./account_manager";
 import { isCodexLoggedIn, runCodexLogin } from "./codex_auth";
+import { AUTH_FILE_NAME } from "./constants";
 import { getAccountDir, getBaseDir } from "./paths";
 import { loadRegistry } from "./registry_store";
 import { runCodexOnce } from "./process_runner";
@@ -72,6 +76,13 @@ program
       process.stderr.write("OAuth login failed.\n");
       process.exit(exitCode);
     }
+
+    const authPath = getAuthFilePath(accountDir);
+    if (!fs.existsSync(authPath)) {
+      process.stderr.write(
+        "Warning: OAuth login completed but auth.json was not found. Check your Codex auth store.\n"
+      );
+    }
   });
 
 program
@@ -89,7 +100,10 @@ program
 
     for (const name of registry.accounts) {
       const marker = registry.default_account === name ? "*" : " ";
-      process.stdout.write(`${marker} ${name}\n`);
+      const accountDir = getAccountDir(baseDir, name);
+      const loggedIn = fs.existsSync(getAuthFilePath(accountDir));
+      const status = loggedIn ? "logged-in" : "not-logged-in";
+      process.stdout.write(`${marker} ${name} (${status})\n`);
     }
   });
 
@@ -101,6 +115,18 @@ program
     const baseDir = getBaseDir(program.opts().dataDir);
     const registry = setDefaultAccount(baseDir, name);
     process.stdout.write(`Default account set to: ${registry.default_account}\n`);
+  });
+
+program
+  .command("remove")
+  .argument("<name>", "Account name")
+  .option("--keep-files", "Keep account files on disk")
+  .description("Remove an account from fallback rotation")
+  .action((name: string, options: { keepFiles: boolean }) => {
+    const baseDir = getBaseDir(program.opts().dataDir);
+    const registry = removeAccount(baseDir, name, !options.keepFiles);
+    process.stdout.write(`Removed account: ${name}\n`);
+    process.stdout.write(`Default account: ${registry.default_account ?? "(none)"}\n`);
   });
 
 program
@@ -173,6 +199,10 @@ function normalizeCodexArgs(args: string[], codexBin: string): string[] {
   }
 
   return args;
+}
+
+function getAuthFilePath(accountDir: string): string {
+  return path.join(accountDir, AUTH_FILE_NAME);
 }
 
 async function runWithFallback(

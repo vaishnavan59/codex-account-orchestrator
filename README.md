@@ -18,7 +18,7 @@ cao add accountA
 cao add accountB
 ```
 
-`cao add` starts OAuth login by default. Use `--no-login` to skip:
+`cao add` starts OAuth login by default and should open a browser window. Use `--no-login` to skip:
 
 ```bash
 cao add accountA --no-login
@@ -34,6 +34,24 @@ cao add accountA --device-auth
 
 ```bash
 cao use accountA
+```
+
+### List accounts
+
+```bash
+cao list
+```
+
+### Remove an account
+
+```bash
+cao remove accountB
+```
+
+To keep files on disk:
+
+```bash
+cao remove accountB --keep-files
 ```
 
 ### Run with fallback

@@ -40,7 +40,17 @@ export async function runCodexLogin(
   accountDir: string,
   useDeviceAuth: boolean
 ): Promise<number> {
-  const args = useDeviceAuth ? ["login", "--device-auth"] : ["login"];
-  const result = await runCodexCommand(codexBin, args, accountDir, "inherit");
-  return result.exitCode;
+  const primaryArgs = useDeviceAuth ? ["login", "--device-auth"] : ["login"];
+  const primaryResult = await runCodexCommand(codexBin, primaryArgs, accountDir, "inherit");
+
+  if (primaryResult.exitCode === 0) {
+    return 0;
+  }
+
+  if (useDeviceAuth) {
+    return primaryResult.exitCode;
+  }
+
+  const fallbackResult = await runCodexCommand(codexBin, ["--login"], accountDir, "inherit");
+  return fallbackResult.exitCode;
 }
