@@ -138,6 +138,7 @@ program
   .option("--retry-delay <seconds>", "Delay between retry passes in seconds", "0")
   .description("Run codex with OAuth fallback across accounts")
   .allowUnknownOption(true)
+  .allowExcessArguments(true)
   .action(async (options: RunOptions) => {
     const baseDir = getBaseDir(program.opts().dataDir);
     ensureBaseDir(baseDir);
