@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-01-27
+
+### Added
+
+- `cao doctor` health checks with JSON output and exit codes
+- `cao report` for Markdown/JSON shareable account summaries
+- Interactive account switching (`cao switch`) and `cao current` convenience command
+- Optional `cao run --gateway` to route traffic through the gateway without CLI fallback
+
+### Changed
+
+- README emphasizes CAO’s unique observability and reporting features
+- Added Korean and Japanese README translations
+
 ## [1.2.0] - 2026-01-27
 
 ### Added
