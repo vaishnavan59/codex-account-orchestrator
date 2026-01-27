@@ -6,6 +6,7 @@
     "outDir": "dist",
     "declaration": true,
     "strict": true,
+    "lib": ["ES2022", "DOM"],
     "esModuleInterop": true,
     "moduleResolution": "node",
     "resolveJsonModule": true,

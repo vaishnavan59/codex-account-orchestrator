@@ -1,16 +1,26 @@
 #!/usr/bin/env node
 
 import { Command } from "commander";
+import fs from "fs";
+import path from "path";
 import {
   addAccount,
   ensureAccountConfig,
   ensureAccountDir,
   ensureBaseDir,
   getAccountOrder,
+  removeAccount,
   setDefaultAccount,
   validateAccountName
 } from "./account_manager";
 import { isCodexLoggedIn, runCodexLogin } from "./codex_auth";
+import { AUTH_FILE_NAME } from "./constants";
+import { disableGatewayConfig, getCodexConfigPath } from "./gateway/codex_config";
+import { AccountPool } from "./gateway/account_pool";
+import { loadGatewayConfig, resolveGatewayConfig, saveGatewayConfig } from "./gateway/gateway_config";
+import { startGatewayServer } from "./gateway/server";
+import { disableGatewayShim, enableGatewayShim } from "./gateway/codex_shim";
+import type { GatewayConfig } from "./gateway/gateway_config";
 import { getAccountDir, getBaseDir } from "./paths";
 import { loadRegistry } from "./registry_store";
 import { runCodexOnce } from "./process_runner";
@@ -27,6 +37,17 @@ interface RunOptions {
   fallback: boolean;
   maxPasses: string;
   retryDelay: string;
+}
+
+interface GatewayStartOptions {
+  bind: string;
+  port: string;
+  baseUrl: string;
+  cooldownSeconds: string;
+  maxRetryPasses: string;
+  timeoutMs: string;
+  save: boolean;
+  passthroughAuth?: boolean;
 }
 
 const program = new Command();
@@ -72,6 +93,13 @@ program
       process.stderr.write("OAuth login failed.\n");
       process.exit(exitCode);
     }
+
+    const authPath = getAuthFilePath(accountDir);
+    if (!fs.existsSync(authPath)) {
+      process.stderr.write(
+        "Warning: OAuth login completed but auth.json was not found. Check your Codex auth store.\n"
+      );
+    }
   });
 
 program
@@ -89,7 +117,10 @@ program
 
     for (const name of registry.accounts) {
       const marker = registry.default_account === name ? "*" : " ";
-      process.stdout.write(`${marker} ${name}\n`);
+      const accountDir = getAccountDir(baseDir, name);
+      const loggedIn = fs.existsSync(getAuthFilePath(accountDir));
+      const status = loggedIn ? "logged-in" : "not-logged-in";
+      process.stdout.write(`${marker} ${name} (${status})\n`);
     }
   });
 
@@ -104,6 +135,123 @@ program
   });
 
 program
+  .command("remove")
+  .argument("<name>", "Account name")
+  .option("--keep-files", "Keep account files on disk")
+  .description("Remove an account from fallback rotation")
+  .action((name: string, options: { keepFiles: boolean }) => {
+    const baseDir = getBaseDir(program.opts().dataDir);
+    const registry = removeAccount(baseDir, name, !options.keepFiles);
+    process.stdout.write(`Removed account: ${name}\n`);
+    process.stdout.write(`Default account: ${registry.default_account ?? "(none)"}\n`);
+  });
+
+const gateway = program.command("gateway").description("Manage CAO gateway");
+
+gateway
+  .command("start")
+  .description("Start the local gateway for seamless account switching")
+  .option("--bind <address>", "Bind address", "127.0.0.1")
+  .option("--port <port>", "Port", "4319")
+  .option("--base-url <url>", "Upstream OpenAI base URL", "https://chatgpt.com/backend-api/codex")
+  .option("--cooldown-seconds <seconds>", "Cooldown for quota-hit accounts", "900")
+  .option("--max-retry-passes <count>", "Max retry passes per request", "1")
+  .option("--timeout-ms <ms>", "Request timeout in milliseconds", "120000")
+  .option("--passthrough-auth", "Do not override Authorization header")
+  .option("--save", "Persist options to gateway.json")
+  .action((options: GatewayStartOptions) => {
+    const baseDir = getBaseDir(program.opts().dataDir);
+    ensureBaseDir(baseDir);
+
+    const overrides = buildGatewayOverrides(options);
+    const merged = resolveGatewayConfig({
+      ...loadGatewayConfig(),
+      ...overrides
+    });
+
+    if (options.save) {
+      saveGatewayConfig({
+        bindAddress: merged.bindAddress,
+        port: merged.port,
+        baseUrl: merged.baseUrl,
+        cooldownSeconds: merged.cooldownSeconds,
+        maxRetryPasses: merged.maxRetryPasses,
+        requestTimeoutMs: merged.requestTimeoutMs,
+        overrideAuth: merged.overrideAuth
+      });
+    }
+
+    const pool = AccountPool.loadFromRegistry(baseDir);
+
+    if (pool.getAccounts().length === 0) {
+      process.stderr.write("No accounts with auth.json were found. Run `cao add` first.\n");
+      process.exit(1);
+      return;
+    }
+
+    const server = startGatewayServer(pool, merged);
+
+    process.stdout.write(
+      `Gateway started on http://${merged.bindAddress}:${merged.port} (upstream ${merged.baseUrl})\n`
+    );
+
+    process.on("SIGINT", () => {
+      server.close(() => {
+        process.stdout.write("Gateway stopped.\n");
+        process.exit(0);
+      });
+    });
+  });
+
+gateway
+  .command("status")
+  .description("Show gateway config and account readiness")
+  .action(() => {
+    const baseDir = getBaseDir(program.opts().dataDir);
+    const config = resolveGatewayConfig(loadGatewayConfig());
+    const pool = AccountPool.loadFromRegistry(baseDir);
+
+    process.stdout.write(`Bind: ${config.bindAddress}:${config.port}\n`);
+    process.stdout.write(`Upstream: ${config.baseUrl}\n`);
+    process.stdout.write(`Override auth: ${config.overrideAuth ? "yes" : "no"}\n`);
+    process.stdout.write(`Accounts: ${pool.getAccounts().length}\n`);
+
+    for (const account of pool.getAccounts()) {
+      const cooldown =
+        account.cooldownUntilMs > Date.now()
+          ? `cooldown ${Math.ceil((account.cooldownUntilMs - Date.now()) / 1000)}s`
+          : "ready";
+      process.stdout.write(`- ${account.name} (${cooldown})\n`);
+    }
+  });
+
+gateway
+  .command("enable")
+  .description("Install a codex shim that routes traffic through the gateway")
+  .option("--base-url <url>", "Gateway base URL", "http://127.0.0.1:4319")
+  .action((options: { baseUrl: string }) => {
+    disableGatewayConfig();
+    const result = enableGatewayShim(options.baseUrl);
+    process.stdout.write(`Codex shim installed: ${result.shimPath}\n`);
+    process.stdout.write(`Real codex: ${result.realCodexPath}\n`);
+    if (!result.inPath) {
+      process.stdout.write(
+        `Warning: ${path.dirname(result.shimPath)} is not in PATH. Update PATH to use the shim.\n`
+      );
+    }
+  });
+
+gateway
+  .command("disable")
+  .description("Remove the codex shim and restore config backup if present")
+  .action(() => {
+    const removed = disableGatewayShim();
+    disableGatewayConfig();
+    process.stdout.write(`Codex config restored: ${getCodexConfigPath()}\n`);
+    process.stdout.write(removed ? "Codex shim removed.\n" : "No codex shim found.\n");
+  });
+
+program
   .command("run")
   .option("--account <name>", "Run with a specific account")
   .option("--codex <path>", "Path to the codex binary", "codex")
@@ -112,6 +260,7 @@ program
   .option("--retry-delay <seconds>", "Delay between retry passes in seconds", "0")
   .description("Run codex with OAuth fallback across accounts")
   .allowUnknownOption(true)
+  .allowExcessArguments(true)
   .action(async (options: RunOptions) => {
     const baseDir = getBaseDir(program.opts().dataDir);
     ensureBaseDir(baseDir);
@@ -173,6 +322,40 @@ function normalizeCodexArgs(args: string[], codexBin: string): string[] {
   }
 
   return args;
+}
+
+function getAuthFilePath(accountDir: string): string {
+  return path.join(accountDir, AUTH_FILE_NAME);
+}
+
+function buildGatewayOverrides(options: GatewayStartOptions): Partial<GatewayConfig> {
+  const overrides: Partial<GatewayConfig> = {};
+
+  overrides.bindAddress = options.bind;
+  overrides.baseUrl = options.baseUrl;
+  overrides.overrideAuth = !options.passthroughAuth;
+
+  const port = Number.parseInt(options.port, 10);
+  if (!Number.isNaN(port)) {
+    overrides.port = port;
+  }
+
+  const cooldown = Number.parseInt(options.cooldownSeconds, 10);
+  if (!Number.isNaN(cooldown)) {
+    overrides.cooldownSeconds = cooldown;
+  }
+
+  const maxRetries = Number.parseInt(options.maxRetryPasses, 10);
+  if (!Number.isNaN(maxRetries)) {
+    overrides.maxRetryPasses = maxRetries;
+  }
+
+  const timeout = Number.parseInt(options.timeoutMs, 10);
+  if (!Number.isNaN(timeout)) {
+    overrides.requestTimeoutMs = timeout;
+  }
+
+  return overrides;
 }
 
 async function runWithFallback(

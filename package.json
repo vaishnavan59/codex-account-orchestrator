@@ -1,7 +1,7 @@
 {
   "name": "codex-account-orchestrator",
-  "version": "0.1.0",
-  "description": "Codex OAuth account fallback orchestrator",
+  "version": "1.0.0",
+  "description": "Codex OAuth account fallback orchestrator with seamless gateway mode",
   "main": "dist/cli_main.js",
   "types": "dist/cli_main.d.ts",
   "bin": {
@@ -11,21 +11,36 @@
   "scripts": {
     "build": "tsc",
     "clean": "rm -rf dist",
+    "prepublishOnly": "npm run clean && npm run build",
     "start": "node dist/cli_main.js"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/DAWNCR0W/codex-account-orchestrator.git"
+  },
+  "bugs": {
+    "url": "https://github.com/DAWNCR0W/codex-account-orchestrator/issues"
+  },
+  "homepage": "https://github.com/DAWNCR0W/codex-account-orchestrator#readme",
   "keywords": [
     "codex",
+    "openai",
     "oauth",
     "account",
     "fallback",
-    "orchestrator"
+    "orchestrator",
+    "gateway",
+    "proxy",
+    "cli"
   ],
-  "author": "",
-  "license": "ISC",
+  "author": "DAWNCR0W",
+  "license": "MIT",
   "type": "commonjs",
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
   ],
   "engines": {
     "node": ">=18"

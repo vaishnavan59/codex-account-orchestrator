@@ -80,6 +80,40 @@ export function setDefaultAccount(baseDir: string, accountName: string): Registr
   return registry;
 }
 
+export function removeAccount(
+  baseDir: string,
+  accountName: string,
+  removeFiles: boolean
+): Registry {
+  ensureBaseDir(baseDir);
+
+  const registry = loadRegistry(baseDir);
+  const normalizedName = validateAccountName(accountName);
+  const index = registry.accounts.indexOf(normalizedName);
+
+  if (index === -1) {
+    throw new Error(`Account not found: ${normalizedName}`);
+  }
+
+  registry.accounts.splice(index, 1);
+
+  if (registry.default_account === normalizedName) {
+    registry.default_account = registry.accounts.length > 0 ? registry.accounts[0] : null;
+  }
+
+  if (removeFiles) {
+    const accountDir = getAccountDir(baseDir, normalizedName);
+
+    if (fs.existsSync(accountDir)) {
+      fs.rmSync(accountDir, { recursive: true, force: true });
+    }
+  }
+
+  saveRegistry(baseDir, registry);
+
+  return registry;
+}
+
 export function getAccountOrder(registry: Registry): string[] {
   if (registry.accounts.length === 0) {
     return [];
