@@ -1,6 +1,6 @@
 {
   "name": "codex-account-orchestrator",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "Codex OAuth account fallback orchestrator with seamless gateway mode",
   "main": "dist/cli_main.js",
   "types": "dist/cli_main.d.ts",

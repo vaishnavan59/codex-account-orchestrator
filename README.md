@@ -17,6 +17,7 @@ Codex OAuth account fallback orchestrator. CAO keeps **separate `CODEX_HOME` dir
 - Automatic fallback on quota exhaustion (keyword-based detector)
 - Gateway mode for seamless account switching without session drops
 - Lightweight observability via `cao status` and `cao list --details`
+- Interactive switching and codex-auth snapshot import
 - Strict TypeScript build with a small, dependency-light CLI
 
 ## Requirements
@@ -67,6 +68,18 @@ cao add accountA --device-auth
 cao use accountA
 ```
 
+Or pick interactively:
+
+```bash
+cao switch
+```
+
+Check the current default account:
+
+```bash
+cao current
+```
+
 ### 3. Run with fallback
 
 ```bash
@@ -99,6 +112,12 @@ cao list
 cao status
 ```
 
+### Compact summary
+
+```bash
+cao status --compact
+```
+
 You can also use:
 
 ```bash
@@ -126,6 +145,12 @@ Gateway mode keeps the Codex session open while switching accounts on quota erro
 
 ```bash
 cao gateway start
+```
+
+Run Codex through the gateway (no CLI fallback, gateway handles switching):
+
+```bash
+cao run --gateway
 ```
 
 Tune upstream retry/backoff (for transient 5xx/network errors):
@@ -191,6 +216,26 @@ Key files:
 - `account_status.json`: persisted last-attempt/success/quota/cooldown signals
 - `<account>/auth.json`: account-scoped tokens managed by Codex
 - `<account>/config.toml`: account-scoped Codex configuration
+
+## Migration from codex-auth
+
+Import snapshots created by `codex-auth`:
+
+```bash
+cao import codex-auth
+```
+
+Custom source directory:
+
+```bash
+cao import codex-auth --source ~/.codex/accounts
+```
+
+Overwrite existing auth files if needed:
+
+```bash
+cao import codex-auth --overwrite
+```
 
 ## Development
 

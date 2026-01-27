@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-01-27
+
+### Added
+
+- `cao switch` interactive account picker and `cao current` convenience command
+- `cao status --compact` for one-line per-account summaries
+- `cao import codex-auth` to migrate snapshots from codex-auth
+- `cao run --gateway` for running through the local gateway without CLI fallback
+
+### Changed
+
+- Gateway status now includes token expiry and last refresh hints
+- README expanded with migration, switching, and gateway run guidance
+
 ## [1.1.1] - 2026-01-27
 
 ### Fixed
