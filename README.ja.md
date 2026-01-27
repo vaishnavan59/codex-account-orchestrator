@@ -67,46 +67,35 @@ cao run -- exec "summarize README"
 | `cao switch` | 対話式で切り替え |
 | `cao current` | 現在のデフォルトを表示 |
 | `cao list` | アカウント一覧 (簡易) |
-| `cao list --details` | 詳細ステータス |
-| `cao status` | フルステータス |
+| `cao status` | ステータスダッシュボード (TTY) または簡易サマリー |
+| `cao status --full` | 詳細フル出力 |
 | `cao status --compact` | 1 行サマリー |
-| `cao doctor` | ヘルスチェック |
-| `cao report` | レポート出力 |
+| `cao status --doctor` | ヘルスチェック |
+| `cao status --report [md|json]` | レポート出力 |
 | `cao run` | フォールバック実行 |
 | `cao run --gateway` | ゲートウェイ経由 |
 
 ## 可視化
 
-詳細ステータス:
-
 ```bash
-cao status
-```
-
-1 行サマリー:
-
-```bash
-cao status --compact
-```
-
-ダッシュボード表示:
-
-```bash
-cao status --pretty
+cao status                 # TTYならダッシュボード、それ以外はサマリー
+cao status --full          # 詳細フル出力
+cao status --compact       # 1 行サマリー
+cao status --pretty        # ダッシュボード強制
 ```
 
 ヘルスチェック (0=ok, 1=warn, 2=error):
 
 ```bash
-cao doctor
-cao doctor --json
+cao status --doctor
+cao status --doctor --json
 ```
 
 レポート:
 
 ```bash
-cao report
-cao report --format json
+cao status --report        # Markdown レポート
+cao status --report json   # JSON レポート
 ```
 
 ## ゲートウェイモード

@@ -69,46 +69,35 @@ cao run -- exec "summarize README"
 | `cao switch` | Interactive account switch |
 | `cao current` | Show current default account |
 | `cao list` | List accounts (quick) |
-| `cao list --details` | Detailed status (human-friendly) |
-| `cao status` | Full status output |
+| `cao status` | Status dashboard (TTY) or compact summary |
+| `cao status --full` | Full verbose status |
 | `cao status --compact` | One-line summaries |
-| `cao doctor` | Health checks and exit codes |
-| `cao report` | Shareable report (Markdown or JSON) |
+| `cao status --doctor` | Health checks and exit codes |
+| `cao status --report [md|json]` | Shareable report (Markdown/JSON) |
 | `cao run` | Run with fallback |
 | `cao run --gateway` | Route through gateway |
 
 ## Observability
 
-Detailed status:
-
 ```bash
-cao status
-```
-
-Compact summaries:
-
-```bash
-cao status --compact
-```
-
-Pretty dashboard:
-
-```bash
-cao status --pretty
+cao status                 # pretty dashboard in TTY, compact otherwise
+cao status --full          # verbose multi-line output
+cao status --compact       # one-line summaries
+cao status --pretty        # force the dashboard view
 ```
 
 Health checks with exit codes (0=ok, 1=warn, 2=error):
 
 ```bash
-cao doctor
-cao doctor --json
+cao status --doctor
+cao status --doctor --json
 ```
 
 Shareable reports:
 
 ```bash
-cao report
-cao report --format json
+cao status --report        # Markdown report
+cao status --report json   # JSON report
 ```
 
 ## Gateway Mode (No Session Drop)

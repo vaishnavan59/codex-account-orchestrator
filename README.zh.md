@@ -67,46 +67,35 @@ cao run -- exec "summarize README"
 | `cao switch` | 交互式切换账号 |
 | `cao current` | 显示当前默认账号 |
 | `cao list` | 账号列表（简版） |
-| `cao list --details` | 详细状态（可读） |
-| `cao status` | 完整状态 |
+| `cao status` | 状态仪表盘（TTY）或简洁摘要 |
+| `cao status --full` | 详细完整输出 |
 | `cao status --compact` | 一行摘要 |
-| `cao doctor` | 健康检查 |
-| `cao report` | 生成报告 |
+| `cao status --doctor` | 健康检查 |
+| `cao status --report [md|json]` | 生成报告 |
 | `cao run` | 自动切换运行 |
 | `cao run --gateway` | 通过网关运行 |
 
 ## 可观测性
 
-详细状态：
-
 ```bash
-cao status
-```
-
-一行摘要：
-
-```bash
-cao status --compact
-```
-
-仪表盘输出：
-
-```bash
-cao status --pretty
+cao status                 # TTY 显示仪表盘，非 TTY 输出摘要
+cao status --full          # 详细完整输出
+cao status --compact       # 一行摘要
+cao status --pretty        # 强制仪表盘输出
 ```
 
 健康检查（0=ok, 1=warn, 2=error）：
 
 ```bash
-cao doctor
-cao doctor --json
+cao status --doctor
+cao status --doctor --json
 ```
 
 报告：
 
 ```bash
-cao report
-cao report --format json
+cao status --report        # Markdown 报告
+cao status --report json   # JSON 报告
 ```
 
 ## 网关模式（不中断会话）

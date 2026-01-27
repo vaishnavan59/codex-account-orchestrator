@@ -67,46 +67,35 @@ cao run -- exec "summarize README"
 | `cao switch` | 대화형 계정 전환 |
 | `cao current` | 현재 기본 계정 표시 |
 | `cao list` | 계정 목록 (간단) |
-| `cao list --details` | 상세 상태 출력 |
-| `cao status` | 전체 상태 출력 |
+| `cao status` | 상태 대시보드 (TTY) 또는 간단 요약 |
+| `cao status --full` | 상세 전체 출력 |
 | `cao status --compact` | 한 줄 요약 |
-| `cao doctor` | 헬스체크 및 종료 코드 |
-| `cao report` | 보고서 생성 |
+| `cao status --doctor` | 헬스체크 및 종료 코드 |
+| `cao status --report [md|json]` | 보고서 생성 |
 | `cao run` | 폴백 실행 |
 | `cao run --gateway` | 게이트웨이 경유 |
 
 ## 관측성
 
-상세 상태:
-
 ```bash
-cao status
-```
-
-한 줄 요약:
-
-```bash
-cao status --compact
-```
-
-대시보드 보기:
-
-```bash
-cao status --pretty
+cao status                 # TTY에서는 대시보드, 그 외에는 요약
+cao status --full          # 상세 전체 출력
+cao status --compact       # 한 줄 요약
+cao status --pretty        # 대시보드 강제
 ```
 
 헬스체크 (0=ok, 1=warn, 2=error):
 
 ```bash
-cao doctor
-cao doctor --json
+cao status --doctor
+cao status --doctor --json
 ```
 
 보고서:
 
 ```bash
-cao report
-cao report --format json
+cao status --report        # Markdown 보고서
+cao status --report json   # JSON 보고서
 ```
 
 ## 게이트웨이 모드

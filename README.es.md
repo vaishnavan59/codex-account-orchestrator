@@ -67,46 +67,35 @@ cao run -- exec "summarize README"
 | `cao switch` | Cambio interactivo |
 | `cao current` | Cuenta por defecto actual |
 | `cao list` | Lista rápida de cuentas |
-| `cao list --details` | Estado detallado |
-| `cao status` | Estado completo |
+| `cao status` | Dashboard en TTY o resumen compacto |
+| `cao status --full` | Estado completo (verbose) |
 | `cao status --compact` | Resumen en una línea |
-| `cao doctor` | Health checks |
-| `cao report` | Reporte en Markdown/JSON |
+| `cao status --doctor` | Health checks |
+| `cao status --report [md|json]` | Reporte en Markdown/JSON |
 | `cao run` | Ejecutar con fallback |
 | `cao run --gateway` | Ejecutar vía gateway |
 
 ## Observabilidad
 
-Estado detallado:
-
 ```bash
-cao status
-```
-
-Resumen compacto:
-
-```bash
-cao status --compact
-```
-
-Dashboard bonito:
-
-```bash
-cao status --pretty
+cao status                 # Dashboard en TTY, resumen si no
+cao status --full          # Salida completa (verbose)
+cao status --compact       # Resumen en una línea
+cao status --pretty        # Forzar dashboard
 ```
 
 Health checks (0=ok, 1=warn, 2=error):
 
 ```bash
-cao doctor
-cao doctor --json
+cao status --doctor
+cao status --doctor --json
 ```
 
 Reportes:
 
 ```bash
-cao report
-cao report --format json
+cao status --report        # Reporte Markdown
+cao status --report json   # Reporte JSON
 ```
 
 ## Modo Gateway (sin cortar sesión)
