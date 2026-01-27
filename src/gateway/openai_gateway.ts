@@ -108,6 +108,7 @@ export class OpenAiGateway {
     const sticky = this.pool.getStickyAccount(sessionKey);
 
     if (sticky && !excluded.has(sticky.name) && sticky.cooldownUntilMs <= Date.now()) {
+      this.pool.markAttempt(sticky);
       return sticky;
     }
 
@@ -115,6 +116,7 @@ export class OpenAiGateway {
 
     if (picked) {
       this.pool.assignAccount(sessionKey, picked.name);
+      this.pool.markAttempt(picked);
     }
 
     return picked;

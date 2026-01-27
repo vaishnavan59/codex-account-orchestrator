@@ -11,6 +11,8 @@
   "scripts": {
     "build": "tsc",
     "clean": "rm -rf dist",
+    "test": "npm run build && node --test test/**/*.test.js",
+    "check": "npm run test",
     "prepublishOnly": "npm run clean && npm run build",
     "start": "node dist/cli_main.js"
   },

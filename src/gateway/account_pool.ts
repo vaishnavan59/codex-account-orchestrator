@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 
+import { updateAccountStatus } from "../account_status_store";
 import { getAccountDir } from "../paths";
 import { loadRegistry } from "../registry_store";
 import { getAccountOrder } from "../account_manager";
@@ -27,10 +28,12 @@ export interface AccountState {
 }
 
 export class AccountPool {
+  private readonly baseDir: string;
   private readonly accounts: AccountState[];
   private readonly sessionAssignments = new Map<string, string>();
 
-  constructor(accounts: AccountState[]) {
+  constructor(baseDir: string, accounts: AccountState[]) {
+    this.baseDir = baseDir;
     this.accounts = accounts;
   }
 
@@ -56,7 +59,7 @@ export class AccountPool {
       });
     }
 
-    return new AccountPool(accounts);
+    return new AccountPool(baseDir, accounts);
   }
 
   getAccounts(): AccountState[] {
@@ -99,27 +102,75 @@ export class AccountPool {
     return undefined;
   }
 
+  markAttempt(account: AccountState): void {
+    const attemptAtMs = Date.now();
+
+    updateAccountStatus(this.baseDir, account.name, (previous) => ({
+      ...previous,
+      lastAttemptAtMs: attemptAtMs
+    }));
+  }
+
   markQuota(account: AccountState, cooldownSeconds: number, resetsAtMs?: number): void {
+    const quotaAtMs = Date.now();
     account.consecutiveFailures += 1;
     account.lastError = "usage_limit_reached";
-    const until = resetsAtMs && resetsAtMs > Date.now() ? resetsAtMs : Date.now() + cooldownSeconds * 1000;
+    const until =
+      resetsAtMs && resetsAtMs > quotaAtMs ? resetsAtMs : quotaAtMs + cooldownSeconds * 1000;
     account.cooldownUntilMs = until;
+
+    updateAccountStatus(this.baseDir, account.name, (previous) => ({
+      ...previous,
+      lastAttemptAtMs: quotaAtMs,
+      lastQuotaAtMs: quotaAtMs,
+      cooldownUntilMs: until,
+      consecutiveFailures: (previous.consecutiveFailures ?? 0) + 1,
+      lastError: "usage_limit_reached"
+    }));
   }
 
   markAuthFailure(account: AccountState, message: string): void {
+    const failureAtMs = Date.now();
+    const cooldownUntilMs = failureAtMs + 60 * 1000;
     account.consecutiveFailures += 1;
     account.lastError = message;
-    account.cooldownUntilMs = Date.now() + 60 * 1000;
+    account.cooldownUntilMs = cooldownUntilMs;
+
+    updateAccountStatus(this.baseDir, account.name, (previous) => ({
+      ...previous,
+      lastAttemptAtMs: failureAtMs,
+      cooldownUntilMs,
+      consecutiveFailures: (previous.consecutiveFailures ?? 0) + 1,
+      lastError: message
+    }));
   }
 
   markSuccess(account: AccountState): void {
+    const successAtMs = Date.now();
     account.consecutiveFailures = 0;
     account.lastError = undefined;
+
+    updateAccountStatus(this.baseDir, account.name, (previous) => ({
+      ...previous,
+      lastAttemptAtMs: successAtMs,
+      lastSuccessAtMs: successAtMs,
+      consecutiveFailures: 0,
+      cooldownUntilMs: undefined,
+      lastError: undefined
+    }));
   }
 
   updateTokens(account: AccountState, tokens: TokenPair): void {
     account.tokens = tokens;
     persistTokens(account.accountDir, tokens);
+
+    updateAccountStatus(this.baseDir, account.name, (previous) => ({
+      ...previous,
+      lastSuccessAtMs: Date.now(),
+      consecutiveFailures: 0,
+      cooldownUntilMs: undefined,
+      lastError: undefined
+    }));
   }
 
   isTokenFresh(account: AccountState, bufferSeconds: number): boolean {

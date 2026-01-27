@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 
+import { deleteAccountStatus, updateAccountStatus } from "./account_status_store";
 import { DEFAULT_CONFIG_TOML } from "./constants";
 import { getAccountDir } from "./paths";
 import { loadRegistry, Registry, saveRegistry } from "./registry_store";
@@ -59,6 +60,7 @@ export function addAccount(baseDir: string, accountName: string): Registry {
     registry.default_account = normalizedName;
   }
 
+  updateAccountStatus(baseDir, normalizedName, () => ({}));
   saveRegistry(baseDir, registry);
 
   return registry;
@@ -109,6 +111,7 @@ export function removeAccount(
     }
   }
 
+  deleteAccountStatus(baseDir, normalizedName);
   saveRegistry(baseDir, registry);
 
   return registry;

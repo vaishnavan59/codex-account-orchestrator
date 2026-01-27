@@ -13,6 +13,8 @@ import {
   setDefaultAccount,
   validateAccountName
 } from "./account_manager";
+import { inspectAccounts, type AccountInspection } from "./account_inspector";
+import { updateAccountStatus } from "./account_status_store";
 import { isCodexLoggedIn, runCodexLogin } from "./codex_auth";
 import { AUTH_FILE_NAME } from "./constants";
 import { disableGatewayConfig, getCodexConfigPath } from "./gateway/codex_config";
@@ -29,6 +31,14 @@ interface AddOptions {
   codex: string;
   login: boolean;
   deviceAuth: boolean;
+}
+
+interface ListOptions {
+  details: boolean;
+}
+
+interface StatusOptions {
+  json: boolean;
 }
 
 interface RunOptions {
@@ -109,23 +119,45 @@ program
 program
   .command("list")
   .description("List registered accounts")
-  .action(() => {
+  .option("--details", "Show detailed account and usage status")
+  .action((options: ListOptions) => {
     const baseDir = getBaseDir(program.opts().dataDir);
     ensureBaseDir(baseDir);
-    const registry = loadRegistry(baseDir);
+    const inspections = inspectAccounts(baseDir);
 
-    if (registry.accounts.length === 0) {
+    if (inspections.length === 0) {
       process.stdout.write("No accounts registered. Use `cao add <name>` first.\n");
       return;
     }
 
-    for (const name of registry.accounts) {
-      const marker = registry.default_account === name ? "*" : " ";
-      const accountDir = getAccountDir(baseDir, name);
-      const loggedIn = fs.existsSync(getAuthFilePath(accountDir));
-      const status = loggedIn ? "logged-in" : "not-logged-in";
-      process.stdout.write(`${marker} ${name} (${status})\n`);
+    if (!options.details) {
+      renderAccountSummary(inspections);
+      return;
     }
+
+    renderAccountDetails(inspections);
+  });
+
+program
+  .command("status")
+  .description("Show detailed account status and cooldown/usage signals")
+  .option("--json", "Output account status as JSON")
+  .action((options: StatusOptions) => {
+    const baseDir = getBaseDir(program.opts().dataDir);
+    ensureBaseDir(baseDir);
+    const inspections = inspectAccounts(baseDir);
+
+    if (inspections.length === 0) {
+      process.stdout.write("No accounts registered. Use `cao add <name>` first.\n");
+      return;
+    }
+
+    if (options.json) {
+      renderAccountDetailsJson(inspections);
+      return;
+    }
+
+    renderAccountDetails(inspections);
   });
 
 program
@@ -220,8 +252,12 @@ gateway
   .description("Show gateway config and account readiness")
   .action(() => {
     const baseDir = getBaseDir(program.opts().dataDir);
+    ensureBaseDir(baseDir);
     const config = resolveGatewayConfig(loadGatewayConfig());
     const pool = AccountPool.loadFromRegistry(baseDir);
+    const inspections = inspectAccounts(baseDir);
+    const inspectionsByName = new Map(inspections.map((inspection) => [inspection.name, inspection]));
+    const nowMs = Date.now();
 
     process.stdout.write(`Bind: ${config.bindAddress}:${config.port}\n`);
     process.stdout.write(`Upstream: ${config.baseUrl}\n`);
@@ -229,11 +265,16 @@ gateway
     process.stdout.write(`Accounts: ${pool.getAccounts().length}\n`);
 
     for (const account of pool.getAccounts()) {
+      const inspection = inspectionsByName.get(account.name);
       const cooldown =
-        account.cooldownUntilMs > Date.now()
-          ? `cooldown ${Math.ceil((account.cooldownUntilMs - Date.now()) / 1000)}s`
+        account.cooldownUntilMs > nowMs
+          ? `cooldown ${Math.ceil((account.cooldownUntilMs - nowMs) / 1000)}s`
           : "ready";
-      process.stdout.write(`- ${account.name} (${cooldown})\n`);
+      const tokenExpiry = formatTimestampWithRelative(inspection?.tokenDetails?.expiresAtMs, nowMs);
+      const lastRefresh = formatTimestampWithRelative(inspection?.lastRefreshAtMs, nowMs);
+      process.stdout.write(
+        `- ${account.name} (${cooldown}) | token_expires_at: ${tokenExpiry} | last_refresh_at: ${lastRefresh}\n`
+      );
     }
   });
 
@@ -340,6 +381,165 @@ function getAuthFilePath(accountDir: string): string {
   return path.join(accountDir, AUTH_FILE_NAME);
 }
 
+function renderAccountSummary(inspections: AccountInspection[]): void {
+  for (const inspection of inspections) {
+    const marker = inspection.isDefault ? "*" : " ";
+    const status = inspection.loggedIn ? "logged-in" : "not-logged-in";
+    process.stdout.write(`${marker} ${inspection.name} (${status})\n`);
+  }
+}
+
+function toAccountDetailRecord(
+  inspection: AccountInspection,
+  referenceMs: number
+): Record<string, unknown> {
+  const status = inspection.status ?? {};
+  const tokenExpiresAtMs = inspection.tokenDetails?.expiresAtMs;
+  const cooldownUntilMs = status.cooldownUntilMs;
+  const cooldownRemainingMs =
+    cooldownUntilMs && cooldownUntilMs > referenceMs ? cooldownUntilMs - referenceMs : 0;
+
+  return {
+    name: inspection.name,
+    isDefault: inspection.isDefault,
+    loggedIn: inspection.loggedIn,
+    accountId: inspection.accountId ?? null,
+    organizationId: inspection.tokenDetails?.organizationId ?? null,
+    tokenExpiresAtMs: tokenExpiresAtMs ?? null,
+    tokenExpiresAtIso: tokenExpiresAtMs ? new Date(tokenExpiresAtMs).toISOString() : null,
+    tokenExpiresInMs: tokenExpiresAtMs ? Math.max(0, tokenExpiresAtMs - referenceMs) : null,
+    lastRefreshAtMs: inspection.lastRefreshAtMs ?? null,
+    lastRefreshAtIso: inspection.lastRefreshAtMs
+      ? new Date(inspection.lastRefreshAtMs).toISOString()
+      : null,
+    lastAttemptAtMs: status.lastAttemptAtMs ?? null,
+    lastAttemptAtIso: status.lastAttemptAtMs
+      ? new Date(status.lastAttemptAtMs).toISOString()
+      : null,
+    lastSuccessAtMs: status.lastSuccessAtMs ?? null,
+    lastSuccessAtIso: status.lastSuccessAtMs
+      ? new Date(status.lastSuccessAtMs).toISOString()
+      : null,
+    lastQuotaAtMs: status.lastQuotaAtMs ?? null,
+    lastQuotaAtIso: status.lastQuotaAtMs
+      ? new Date(status.lastQuotaAtMs).toISOString()
+      : null,
+    cooldownUntilMs: cooldownUntilMs ?? null,
+    cooldownUntilIso: cooldownUntilMs
+      ? new Date(cooldownUntilMs).toISOString()
+      : null,
+    cooldownRemainingMs,
+    consecutiveFailures: status.consecutiveFailures ?? 0,
+    lastError: status.lastError ?? null,
+    accountDir: inspection.accountDir,
+    authFilePath: inspection.authFilePath
+  };
+}
+
+function renderAccountDetails(inspections: AccountInspection[], referenceMs = Date.now()): void {
+  const indent = "  ";
+
+  for (const inspection of inspections) {
+    const marker = inspection.isDefault ? "*" : " ";
+    const status = inspection.status ?? {};
+    const loginStatus = inspection.loggedIn ? "logged-in" : "not-logged-in";
+
+    process.stdout.write(`${marker} ${inspection.name}\n`);
+    process.stdout.write(`${indent}status: ${loginStatus}\n`);
+    process.stdout.write(`${indent}account_id: ${inspection.accountId ?? "(unknown)"}\n`);
+    process.stdout.write(
+      `${indent}organization_id: ${inspection.tokenDetails?.organizationId ?? "(unknown)"}\n`
+    );
+    process.stdout.write(
+      `${indent}token_expires_at: ${formatTimestampWithRelative(
+        inspection.tokenDetails?.expiresAtMs,
+        referenceMs
+      )}\n`
+    );
+    process.stdout.write(
+      `${indent}last_refresh_at: ${formatTimestampWithRelative(inspection.lastRefreshAtMs, referenceMs)}\n`
+    );
+    process.stdout.write(
+      `${indent}last_attempt_at: ${formatTimestampWithRelative(status.lastAttemptAtMs, referenceMs)}\n`
+    );
+    process.stdout.write(
+      `${indent}last_success_at: ${formatTimestampWithRelative(status.lastSuccessAtMs, referenceMs)}\n`
+    );
+    process.stdout.write(
+      `${indent}last_quota_at: ${formatTimestampWithRelative(status.lastQuotaAtMs, referenceMs)}\n`
+    );
+    process.stdout.write(
+      `${indent}cooldown_until: ${formatCooldown(status.cooldownUntilMs, referenceMs)}\n`
+    );
+    process.stdout.write(
+      `${indent}consecutive_failures: ${status.consecutiveFailures ?? 0}\n`
+    );
+    process.stdout.write(`${indent}last_error: ${status.lastError ?? "none"}\n`);
+    process.stdout.write(`${indent}account_dir: ${inspection.accountDir}\n`);
+    process.stdout.write("\n");
+  }
+}
+
+function renderAccountDetailsJson(inspections: AccountInspection[]): void {
+  const referenceMs = Date.now();
+  const payload = inspections.map((inspection) => toAccountDetailRecord(inspection, referenceMs));
+  process.stdout.write(JSON.stringify(payload, null, 2) + "\n");
+}
+
+function formatDuration(durationMs: number): string {
+  const totalSeconds = Math.max(0, Math.floor(durationMs / 1000));
+
+  if (totalSeconds < 60) {
+    return `${totalSeconds}s`;
+  }
+
+  const minutes = Math.floor(totalSeconds / 60);
+  if (minutes < 60) {
+    const seconds = totalSeconds % 60;
+    return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) {
+    const remainingMinutes = minutes % 60;
+    return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
+  }
+
+  const days = Math.floor(hours / 24);
+  const remainingHours = hours % 24;
+  return remainingHours > 0 ? `${days}d ${remainingHours}h` : `${days}d`;
+}
+
+function formatTimestampWithRelative(timestampMs: number | undefined, referenceMs: number): string {
+  if (!timestampMs) {
+    return "(unknown)";
+  }
+
+  const iso = new Date(timestampMs).toISOString();
+  const diffMs = timestampMs - referenceMs;
+
+  if (Math.abs(diffMs) < 5_000) {
+    return `${iso} (now)`;
+  }
+
+  const relative =
+    diffMs > 0 ? `in ${formatDuration(diffMs)}` : `${formatDuration(-diffMs)} ago`;
+  return `${iso} (${relative})`;
+}
+
+function formatCooldown(cooldownUntilMs: number | undefined, referenceMs: number): string {
+  if (!cooldownUntilMs) {
+    return "none";
+  }
+
+  if (cooldownUntilMs <= referenceMs) {
+    const iso = new Date(cooldownUntilMs).toISOString();
+    return `${iso} (elapsed)`;
+  }
+
+  return formatTimestampWithRelative(cooldownUntilMs, referenceMs);
+}
+
 function buildGatewayOverrides(options: GatewayStartOptions): Partial<GatewayConfig> {
   const overrides: Partial<GatewayConfig> = {};
 
@@ -408,6 +608,12 @@ async function runWithFallback(
       const name = accounts[index];
       const accountDir = ensureAccountDir(baseDir, name);
       ensureAccountConfig(accountDir);
+      const attemptAtMs = Date.now();
+
+      updateAccountStatus(baseDir, name, (previous) => ({
+        ...previous,
+        lastAttemptAtMs: attemptAtMs
+      }));
 
       process.stderr.write(`Using account: ${name}\n`);
 
@@ -415,21 +621,54 @@ async function runWithFallback(
       lastExitCode = result.exitCode;
 
       if (result.exitCode === 0) {
+        updateAccountStatus(baseDir, name, (previous) => ({
+          ...previous,
+          lastAttemptAtMs: attemptAtMs,
+          lastSuccessAtMs: Date.now(),
+          consecutiveFailures: 0,
+          cooldownUntilMs: undefined,
+          lastError: undefined
+        }));
         process.exit(0);
         return;
       }
 
       if (!options.fallback) {
+        updateAccountStatus(baseDir, name, (previous) => ({
+          ...previous,
+          lastAttemptAtMs: attemptAtMs,
+          consecutiveFailures: (previous.consecutiveFailures ?? 0) + 1,
+          cooldownUntilMs: undefined,
+          lastError: `exit_code_${result.exitCode}`
+        }));
         process.exit(result.exitCode);
         return;
       }
 
       if (!result.quotaError) {
+        updateAccountStatus(baseDir, name, (previous) => ({
+          ...previous,
+          lastAttemptAtMs: attemptAtMs,
+          consecutiveFailures: (previous.consecutiveFailures ?? 0) + 1,
+          cooldownUntilMs: undefined,
+          lastError: `exit_code_${result.exitCode}`
+        }));
         process.exit(result.exitCode);
         return;
       }
 
       quotaFailures += 1;
+      const quotaAtMs = Date.now();
+      const cooldownUntilMs = retryDelayMs > 0 ? quotaAtMs + retryDelayMs : undefined;
+
+      updateAccountStatus(baseDir, name, (previous) => ({
+        ...previous,
+        lastAttemptAtMs: attemptAtMs,
+        lastQuotaAtMs: quotaAtMs,
+        cooldownUntilMs,
+        consecutiveFailures: (previous.consecutiveFailures ?? 0) + 1,
+        lastError: "usage_limit_reached"
+      }));
       const nextName = accounts[index + 1];
 
       if (nextName) {

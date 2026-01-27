@@ -1,5 +1,6 @@
 export const REGISTRY_FILE_NAME = "registry.json";
 export const AUTH_FILE_NAME = "auth.json";
+export const ACCOUNT_STATUS_FILE_NAME = "account_status.json";
 
 export const DEFAULT_CONFIG_TOML = [
   "# Codex config for this account",
