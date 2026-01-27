@@ -10,6 +10,10 @@ export interface GatewayConfig {
   cooldownSeconds: number;
   maxRetryPasses: number;
   requestTimeoutMs: number;
+  upstreamMaxRetries: number;
+  upstreamRetryBaseMs: number;
+  upstreamRetryMaxMs: number;
+  upstreamRetryJitterMs: number;
   overrideAuth: boolean;
 }
 
@@ -21,6 +25,10 @@ const DEFAULT_CONFIG: GatewayConfig = {
   cooldownSeconds: 900,
   maxRetryPasses: 1,
   requestTimeoutMs: 120_000,
+  upstreamMaxRetries: 2,
+  upstreamRetryBaseMs: 200,
+  upstreamRetryMaxMs: 2_000,
+  upstreamRetryJitterMs: 120,
   overrideAuth: true
 };
 

@@ -46,6 +46,10 @@ interface GatewayStartOptions {
   cooldownSeconds: string;
   maxRetryPasses: string;
   timeoutMs: string;
+  upstreamRetries: string;
+  upstreamRetryBaseMs: string;
+  upstreamRetryMaxMs: string;
+  upstreamRetryJitterMs: string;
   save: boolean;
   passthroughAuth?: boolean;
 }
@@ -157,6 +161,10 @@ gateway
   .option("--cooldown-seconds <seconds>", "Cooldown for quota-hit accounts", "900")
   .option("--max-retry-passes <count>", "Max retry passes per request", "1")
   .option("--timeout-ms <ms>", "Request timeout in milliseconds", "120000")
+  .option("--upstream-retries <count>", "Retries for upstream 5xx/network errors", "2")
+  .option("--upstream-retry-base-ms <ms>", "Base delay for upstream retries", "200")
+  .option("--upstream-retry-max-ms <ms>", "Max delay for upstream retries", "2000")
+  .option("--upstream-retry-jitter-ms <ms>", "Jitter for upstream retries", "120")
   .option("--passthrough-auth", "Do not override Authorization header")
   .option("--save", "Persist options to gateway.json")
   .action((options: GatewayStartOptions) => {
@@ -177,6 +185,10 @@ gateway
         cooldownSeconds: merged.cooldownSeconds,
         maxRetryPasses: merged.maxRetryPasses,
         requestTimeoutMs: merged.requestTimeoutMs,
+        upstreamMaxRetries: merged.upstreamMaxRetries,
+        upstreamRetryBaseMs: merged.upstreamRetryBaseMs,
+        upstreamRetryMaxMs: merged.upstreamRetryMaxMs,
+        upstreamRetryJitterMs: merged.upstreamRetryJitterMs,
         overrideAuth: merged.overrideAuth
       });
     }
@@ -353,6 +365,26 @@ function buildGatewayOverrides(options: GatewayStartOptions): Partial<GatewayCon
   const timeout = Number.parseInt(options.timeoutMs, 10);
   if (!Number.isNaN(timeout)) {
     overrides.requestTimeoutMs = timeout;
+  }
+
+  const upstreamRetries = Number.parseInt(options.upstreamRetries, 10);
+  if (!Number.isNaN(upstreamRetries)) {
+    overrides.upstreamMaxRetries = upstreamRetries;
+  }
+
+  const upstreamRetryBaseMs = Number.parseInt(options.upstreamRetryBaseMs, 10);
+  if (!Number.isNaN(upstreamRetryBaseMs)) {
+    overrides.upstreamRetryBaseMs = upstreamRetryBaseMs;
+  }
+
+  const upstreamRetryMaxMs = Number.parseInt(options.upstreamRetryMaxMs, 10);
+  if (!Number.isNaN(upstreamRetryMaxMs)) {
+    overrides.upstreamRetryMaxMs = upstreamRetryMaxMs;
+  }
+
+  const upstreamRetryJitterMs = Number.parseInt(options.upstreamRetryJitterMs, 10);
+  if (!Number.isNaN(upstreamRetryJitterMs)) {
+    overrides.upstreamRetryJitterMs = upstreamRetryJitterMs;
   }
 
   return overrides;

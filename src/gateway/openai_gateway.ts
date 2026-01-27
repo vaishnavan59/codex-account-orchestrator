@@ -147,7 +147,7 @@ export class OpenAiGateway {
 
     const attempt = async (token?: string): Promise<ForwardResult> => {
       const headers = buildForwardHeaders(req, account, token, this.config);
-      return this.fetchOnce(targetUrl, req.method, headers, body, abortSignal);
+      return this.fetchWithRetry(targetUrl, req.method, headers, body, abortSignal);
     };
 
     let response = await attempt(accessToken);
@@ -199,6 +199,7 @@ export class OpenAiGateway {
           status: response.status,
           authFailure: true,
           quota: false,
+          retryable: false,
           bodyText: await safeReadText(response)
         };
       }
@@ -210,17 +211,20 @@ export class OpenAiGateway {
           status: response.status,
           authFailure: false,
           quota: true,
+          retryable: false,
           resetAtMs: errorBody.resetAtMs,
           bodyText: errorBody.rawText
         };
       }
 
       if (!response.ok) {
+        const retryable = isRetryableStatus(response.status);
         return {
           ok: false,
           status: response.status,
           authFailure: false,
           quota: false,
+          retryable,
           bodyText: errorBody?.rawText ?? (await safeReadText(response))
         };
       }
@@ -245,6 +249,7 @@ export class OpenAiGateway {
             authFailure: false,
             quota: false,
             aborted: true,
+            retryable: false,
             bodyText: "client_aborted"
           };
         }
@@ -253,6 +258,7 @@ export class OpenAiGateway {
           status: 504,
           authFailure: false,
           quota: false,
+          retryable: true,
           bodyText: "gateway_timeout"
         };
       }
@@ -261,9 +267,71 @@ export class OpenAiGateway {
         status: 502,
         authFailure: false,
         quota: false,
+        retryable: true,
         bodyText: error instanceof Error ? error.message : "gateway_fetch_error"
       };
     }
+  }
+
+  private async fetchWithRetry(
+    targetUrl: URL,
+    method: string | undefined,
+    headers: Headers,
+    body: Buffer,
+    externalSignal?: AbortSignal
+  ): Promise<ForwardResult> {
+    const maxRetries = normalizeRetryCount(this.config.upstreamMaxRetries);
+    const baseDelayMs = Math.max(0, this.config.upstreamRetryBaseMs);
+    const maxDelayMs = Math.max(baseDelayMs, this.config.upstreamRetryMaxMs);
+    const jitterMs = Math.max(0, this.config.upstreamRetryJitterMs);
+    const maxAttempts = maxRetries + 1;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      if (externalSignal?.aborted) {
+        return {
+          ok: false,
+          status: 499,
+          authFailure: false,
+          quota: false,
+          aborted: true,
+          retryable: false,
+          bodyText: "client_aborted"
+        };
+      }
+
+      const result = await this.fetchOnce(targetUrl, method, headers, body, externalSignal);
+
+      if (result.ok || result.quota || result.authFailure || result.aborted) {
+        return result;
+      }
+
+      if (!result.retryable || attempt >= maxAttempts - 1) {
+        return result;
+      }
+
+      const delayMs = computeRetryDelay(attempt, baseDelayMs, maxDelayMs, jitterMs);
+      const shouldContinue = await sleepWithAbort(delayMs, externalSignal);
+      if (!shouldContinue) {
+        return {
+          ok: false,
+          status: 499,
+          authFailure: false,
+          quota: false,
+          aborted: true,
+          retryable: false,
+          bodyText: "client_aborted"
+        };
+      }
+    }
+
+    return {
+      ok: false,
+      status: 502,
+      authFailure: false,
+      quota: false,
+      retryable: false,
+      bodyText: "gateway_retry_exhausted"
+    };
   }
 
   private async ensureAccessToken(account: AccountState): Promise<string | undefined> {
@@ -337,6 +405,7 @@ interface ForwardResult {
   resetAtMs?: number;
   authFailure: boolean;
   aborted?: boolean;
+  retryable?: boolean;
   bodyText?: string;
 }
 
@@ -689,4 +758,60 @@ async function tryReadErrorBody(
   }
 
   return { quota: false, rawText };
+}
+
+function isRetryableStatus(status: number): boolean {
+  return status >= 500 && status < 600;
+}
+
+function normalizeRetryCount(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  return Math.max(0, Math.floor(value));
+}
+
+function computeRetryDelay(
+  attempt: number,
+  baseDelayMs: number,
+  maxDelayMs: number,
+  jitterMs: number
+): number {
+  if (baseDelayMs <= 0) {
+    return 0;
+  }
+
+  const exponential = Math.min(maxDelayMs, baseDelayMs * 2 ** attempt);
+  const jitter = jitterMs > 0 ? Math.floor(Math.random() * jitterMs) : 0;
+  return Math.min(maxDelayMs, exponential + jitter);
+}
+
+function sleepWithAbort(ms: number, signal?: AbortSignal): Promise<boolean> {
+  if (ms <= 0) {
+    return Promise.resolve(true);
+  }
+
+  if (signal?.aborted) {
+    return Promise.resolve(false);
+  }
+
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      cleanup(true);
+    }, ms);
+
+    const onAbort = () => cleanup(false);
+
+    const cleanup = (result: boolean) => {
+      clearTimeout(timer);
+      if (signal) {
+        signal.removeEventListener("abort", onAbort);
+      }
+      resolve(result);
+    };
+
+    if (signal) {
+      signal.addEventListener("abort", onAbort, { once: true });
+    }
+  });
 }
