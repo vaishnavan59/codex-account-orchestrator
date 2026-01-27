@@ -89,6 +89,12 @@ Resumen compacto:
 cao status --compact
 ```
 
+Dashboard bonito:
+
+```bash
+cao status --pretty
+```
+
 Health checks (0=ok, 1=warn, 2=error):
 
 ```bash

@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `cao report` for Markdown/JSON shareable account summaries
 - Interactive account switching (`cao switch`) and `cao current` convenience command
 - Optional `cao run --gateway` to route traffic through the gateway without CLI fallback
+- `cao status --pretty` for a framed dashboard view
 
 ### Changed
 

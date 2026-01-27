@@ -89,6 +89,12 @@ cao status
 cao status --compact
 ```
 
+대시보드 보기:
+
+```bash
+cao status --pretty
+```
+
 헬스체크 (0=ok, 1=warn, 2=error):
 
 ```bash

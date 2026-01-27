@@ -91,6 +91,12 @@ Compact summaries:
 cao status --compact
 ```
 
+Pretty dashboard:
+
+```bash
+cao status --pretty
+```
+
 Health checks with exit codes (0=ok, 1=warn, 2=error):
 
 ```bash

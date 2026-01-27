@@ -89,6 +89,12 @@ cao status
 cao status --compact
 ```
 
+仪表盘输出：
+
+```bash
+cao status --pretty
+```
+
 健康检查（0=ok, 1=warn, 2=error）：
 
 ```bash
