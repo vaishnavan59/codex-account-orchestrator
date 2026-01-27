@@ -9,7 +9,7 @@
 
 Codex OAuth アカウントのオーケストレーター。CAO はアカウントごとに `CODEX_HOME` を分離し、クォータ消費時に自動で次のアカウントへ切り替えます。
 
-Language: [English](README.md) | [한국어](README.ko.md) | 日本語
+Language: [English](README.md) | [한국어](README.ko.md) | 日本語 | [中文](README.zh.md) | [Español](README.es.md)
 
 ## CAO の特徴
 

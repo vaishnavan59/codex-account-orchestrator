@@ -9,7 +9,7 @@
 
 Codex OAuth account fallback orchestrator. CAO keeps separate `CODEX_HOME` directories per account and automatically falls back to the next account when quota is exhausted.
 
-Language: English | [한국어](README.ko.md) | [日本語](README.ja.md)
+Language: English | [한국어](README.ko.md) | [日本語](README.ja.md) | [中文](README.zh.md) | [Español](README.es.md)
 
 ## Why CAO
 

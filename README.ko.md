@@ -9,7 +9,7 @@
 
 Codex OAuth 계정 오케스트레이터. CAO는 계정마다 별도의 `CODEX_HOME`을 만들고, 쿼터가 소진되면 자동으로 다음 계정으로 전환합니다.
 
-Language: [English](README.md) | 한국어 | [日本語](README.ja.md)
+Language: [English](README.md) | 한국어 | [日本語](README.ja.md) | [中文](README.zh.md) | [Español](README.es.md)
 
 ## CAO의 강점
 

@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - README emphasizes CAO’s unique observability and reporting features
 - Added Korean and Japanese README translations
+- Added Chinese and Spanish README translations
 
 ## [1.2.0] - 2026-01-27
 
