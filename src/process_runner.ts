@@ -12,10 +12,15 @@ export async function runCodexOnce(
   codexBin: string,
   codexArgs: string[],
   accountDir: string,
-  captureOutput: boolean
+  captureOutput: boolean,
+  envOverrides: Record<string, string | undefined> = {}
 ): Promise<RunResult> {
   const capture = new OutputCapture();
-  const env = { ...process.env, CODEX_HOME: accountDir };
+  const env = {
+    ...process.env,
+    CODEX_HOME: accountDir,
+    ...envOverrides
+  };
 
   const child = spawn(codexBin, codexArgs, {
     env,

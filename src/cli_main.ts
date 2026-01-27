@@ -2,7 +2,9 @@
 
 import { Command } from "commander";
 import fs from "fs";
+import os from "os";
 import path from "path";
+import { createInterface } from "readline/promises";
 import {
   addAccount,
   ensureAccountConfig,
@@ -39,12 +41,22 @@ interface ListOptions {
 
 interface StatusOptions {
   json: boolean;
+  compact: boolean;
+}
+
+interface ImportCodexAuthOptions {
+  source: string;
+  overwrite: boolean;
+  current?: string;
+  default?: string;
 }
 
 interface RunOptions {
   account?: string;
   codex: string;
   fallback: boolean;
+  gateway: boolean;
+  gatewayUrl: string;
   maxPasses: string;
   retryDelay: string;
 }
@@ -139,9 +151,51 @@ program
   });
 
 program
+  .command("switch")
+  .argument("[name]", "Account name")
+  .description("Switch the default account (interactive if omitted)")
+  .action(async (name?: string) => {
+    const baseDir = getBaseDir(program.opts().dataDir);
+    ensureBaseDir(baseDir);
+
+    const inspections = inspectAccounts(baseDir);
+    if (inspections.length === 0) {
+      process.stdout.write("No accounts registered. Use `cao add <name>` first.\n");
+      return;
+    }
+
+    const resolved = name ?? (await promptForAccountSelection(inspections));
+
+    if (!resolved) {
+      process.stdout.write("No account selected.\n");
+      return;
+    }
+
+    const registry = setDefaultAccount(baseDir, resolved);
+    process.stdout.write(`Default account set to: ${registry.default_account}\n`);
+  });
+
+program
+  .command("current")
+  .description("Show the current default account")
+  .action(() => {
+    const baseDir = getBaseDir(program.opts().dataDir);
+    ensureBaseDir(baseDir);
+    const registry = loadRegistry(baseDir);
+
+    if (!registry.default_account) {
+      process.stdout.write("No default account set.\n");
+      return;
+    }
+
+    process.stdout.write(`${registry.default_account}\n`);
+  });
+
+program
   .command("status")
   .description("Show detailed account status and cooldown/usage signals")
   .option("--json", "Output account status as JSON")
+  .option("--compact", "Output a compact one-line summary per account")
   .action((options: StatusOptions) => {
     const baseDir = getBaseDir(program.opts().dataDir);
     ensureBaseDir(baseDir);
@@ -157,7 +211,128 @@ program
       return;
     }
 
+    if (options.compact) {
+      renderAccountCompact(inspections);
+      return;
+    }
+
     renderAccountDetails(inspections);
+  });
+
+const importCommand = program.command("import").description("Import accounts from other tools");
+
+importCommand
+  .command("codex-auth")
+  .description("Import account snapshots from codex-auth")
+  .option(
+    "--source <path>",
+    "Source directory with codex-auth snapshots",
+    path.join(os.homedir(), ".codex", "accounts")
+  )
+  .option("--overwrite", "Overwrite existing auth.json files")
+  .option("--current <name>", "Treat this account as active during import")
+  .option("--default <name>", "Set this account as the default after import")
+  .action((options: ImportCodexAuthOptions) => {
+    const baseDir = getBaseDir(program.opts().dataDir);
+    ensureBaseDir(baseDir);
+
+    const sourceDir = path.resolve(options.source);
+
+    if (!fs.existsSync(sourceDir)) {
+      process.stderr.write(`Source directory not found: ${sourceDir}\n`);
+      process.exit(1);
+      return;
+    }
+
+    const entries = fs.readdirSync(sourceDir);
+    const snapshotFiles = entries.filter((entry) => entry.endsWith(".json"));
+
+    if (snapshotFiles.length === 0) {
+      process.stdout.write(`No snapshot files found in ${sourceDir}.\n`);
+      return;
+    }
+
+    const importedNames: string[] = [];
+    let importedCount = 0;
+    let skippedCount = 0;
+    let errorCount = 0;
+
+    for (const fileName of snapshotFiles) {
+      const rawName = path.basename(fileName, ".json");
+      let normalizedName: string;
+
+      try {
+        normalizedName = validateAccountName(rawName);
+      } catch (error) {
+        process.stderr.write(
+          `Skipping snapshot '${fileName}': ${(error as Error).message}\n`
+        );
+        errorCount += 1;
+        continue;
+      }
+
+      const sourcePath = path.join(sourceDir, fileName);
+      let parsed: unknown;
+
+      try {
+        parsed = JSON.parse(fs.readFileSync(sourcePath, "utf8")) as unknown;
+      } catch (error) {
+        process.stderr.write(
+          `Skipping snapshot '${fileName}': invalid JSON (${(error as Error).message}).\n`
+        );
+        errorCount += 1;
+        continue;
+      }
+
+      addAccount(baseDir, normalizedName);
+      const accountDir = getAccountDir(baseDir, normalizedName);
+      ensureAccountConfig(accountDir);
+      const authPath = getAuthFilePath(accountDir);
+
+      if (fs.existsSync(authPath) && !options.overwrite) {
+        skippedCount += 1;
+        continue;
+      }
+
+      fs.writeFileSync(authPath, JSON.stringify(parsed, null, 2) + "\n", "utf8");
+      importedNames.push(normalizedName);
+      importedCount += 1;
+
+    }
+
+    const activeName =
+      options.default ??
+      options.current ??
+      findCodexAuthActiveAccount(sourceDir) ??
+      undefined;
+
+    if (activeName) {
+      try {
+        const normalizedActive = validateAccountName(activeName);
+        const registry = loadRegistry(baseDir);
+
+        if (registry.accounts.includes(normalizedActive)) {
+          setDefaultAccount(baseDir, normalizedActive);
+          process.stdout.write(`Default account set to: ${normalizedActive}\n`);
+        } else {
+          process.stderr.write(
+            `Requested default '${normalizedActive}' not found in imported accounts.\n`
+          );
+        }
+      } catch (error) {
+        process.stderr.write(
+          `Unable to set default account '${activeName}': ${(error as Error).message}\n`
+        );
+      }
+    }
+
+    process.stdout.write(
+      `Import complete. Imported: ${importedCount}, skipped: ${skippedCount}, errors: ${errorCount}.\n`
+    );
+
+    if (importedNames.length > 0) {
+      process.stdout.write(`Imported accounts: ${importedNames.join(", ")}\n`);
+    }
   });
 
 program
@@ -308,6 +483,8 @@ program
   .command("run")
   .option("--account <name>", "Run with a specific account")
   .option("--codex <path>", "Path to the codex binary", "codex")
+  .option("--gateway", "Route Codex traffic through the local gateway")
+  .option("--gateway-url <url>", "Gateway base URL", "http://127.0.0.1:4319")
   .option("--no-fallback", "Disable automatic fallback")
   .option("--max-passes <count>", "Retry passes when all accounts hit quota", "2")
   .option("--retry-delay <seconds>", "Delay between retry passes in seconds", "0")
@@ -379,6 +556,86 @@ function normalizeCodexArgs(args: string[], codexBin: string): string[] {
 
 function getAuthFilePath(accountDir: string): string {
   return path.join(accountDir, AUTH_FILE_NAME);
+}
+
+async function promptForAccountSelection(
+  inspections: AccountInspection[]
+): Promise<string | undefined> {
+  if (!process.stdin.isTTY) {
+    process.stderr.write("No TTY available. Please provide an account name.\n");
+    return undefined;
+  }
+
+  process.stdout.write("Select an account:\n");
+  for (let index = 0; index < inspections.length; index += 1) {
+    const inspection = inspections[index];
+    const marker = inspection.isDefault ? "*" : " ";
+    process.stdout.write(`${index + 1}. ${marker} ${inspection.name}\n`);
+  }
+
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  const answer = (await rl.question("Enter a number or name (blank to cancel): ")).trim();
+  rl.close();
+
+  if (!answer) {
+    return undefined;
+  }
+
+  const index = Number.parseInt(answer, 10);
+  if (!Number.isNaN(index)) {
+    const selected = inspections[index - 1];
+    return selected?.name;
+  }
+
+  try {
+    const normalized = validateAccountName(answer);
+    const exists = inspections.some((inspection) => inspection.name === normalized);
+
+    if (!exists) {
+      process.stderr.write(`Account not found: ${normalized}\n`);
+      return undefined;
+    }
+
+    return normalized;
+  } catch (error) {
+    process.stderr.write(`Invalid account name: ${(error as Error).message}\n`);
+    return undefined;
+  }
+}
+
+function findCodexAuthActiveAccount(sourceDir: string): string | undefined {
+  const parentDir = path.dirname(sourceDir);
+  const candidates = [
+    path.join(sourceDir, ".active"),
+    path.join(sourceDir, "active"),
+    path.join(sourceDir, ".current"),
+    path.join(sourceDir, "current"),
+    path.join(sourceDir, ".selected"),
+    path.join(sourceDir, "selected"),
+    path.join(parentDir, ".active"),
+    path.join(parentDir, "active"),
+    path.join(parentDir, ".current"),
+    path.join(parentDir, "current"),
+    path.join(parentDir, ".selected"),
+    path.join(parentDir, "selected")
+  ];
+
+  for (const candidate of candidates) {
+    if (!fs.existsSync(candidate)) {
+      continue;
+    }
+
+    try {
+      const value = fs.readFileSync(candidate, "utf8").trim();
+      if (value.length > 0) {
+        return value;
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return undefined;
 }
 
 function renderAccountSummary(inspections: AccountInspection[]): void {
@@ -486,6 +743,23 @@ function renderAccountDetailsJson(inspections: AccountInspection[]): void {
   process.stdout.write(JSON.stringify(payload, null, 2) + "\n");
 }
 
+function renderAccountCompact(inspections: AccountInspection[]): void {
+  const referenceMs = Date.now();
+
+  for (const inspection of inspections) {
+    const marker = inspection.isDefault ? "*" : " ";
+    const status = inspection.status ?? {};
+    const loginStatus = inspection.loggedIn ? "logged-in" : "not-logged-in";
+    const expires = formatExpiryShort(inspection.tokenDetails?.expiresAtMs, referenceMs);
+    const lastQuota = formatRelativeShort(status.lastQuotaAtMs, referenceMs);
+    const cooldown = formatCooldownShort(status.cooldownUntilMs, referenceMs);
+
+    process.stdout.write(
+      `${marker} ${inspection.name} (${loginStatus}) | expires: ${expires} | cooldown: ${cooldown} | last_quota: ${lastQuota} | failures: ${status.consecutiveFailures ?? 0}\n`
+    );
+  }
+}
+
 function formatDuration(durationMs: number): string {
   const totalSeconds = Math.max(0, Math.floor(durationMs / 1000));
 
@@ -525,6 +799,41 @@ function formatTimestampWithRelative(timestampMs: number | undefined, referenceM
   const relative =
     diffMs > 0 ? `in ${formatDuration(diffMs)}` : `${formatDuration(-diffMs)} ago`;
   return `${iso} (${relative})`;
+}
+
+function formatRelativeShort(timestampMs: number | undefined, referenceMs: number): string {
+  if (!timestampMs) {
+    return "none";
+  }
+
+  const diffMs = timestampMs - referenceMs;
+  if (diffMs <= 0) {
+    return `${formatDuration(-diffMs)} ago`;
+  }
+
+  return `in ${formatDuration(diffMs)}`;
+}
+
+function formatExpiryShort(timestampMs: number | undefined, referenceMs: number): string {
+  if (!timestampMs) {
+    return "unknown";
+  }
+
+  const diffMs = timestampMs - referenceMs;
+
+  if (diffMs <= 0) {
+    return "expired";
+  }
+
+  return `in ${formatDuration(diffMs)}`;
+}
+
+function formatCooldownShort(timestampMs: number | undefined, referenceMs: number): string {
+  if (!timestampMs || timestampMs <= referenceMs) {
+    return "none";
+  }
+
+  return `in ${formatDuration(timestampMs - referenceMs)}`;
 }
 
 function formatCooldown(cooldownUntilMs: number | undefined, referenceMs: number): string {
@@ -597,8 +906,17 @@ async function runWithFallback(
   codexArgs: string[]
 ): Promise<void> {
   const codexBin = options.codex;
+  const gatewayUrl = options.gateway ? options.gatewayUrl : undefined;
+  const fallbackEnabled = options.fallback && !options.gateway;
   const maxPasses = normalizeMaxPasses(options.maxPasses);
   const retryDelayMs = normalizeDelay(options.retryDelay);
+
+  if (options.gateway && gatewayUrl) {
+    process.stderr.write(`Gateway routing enabled: ${gatewayUrl}\n`);
+    if (options.fallback) {
+      process.stderr.write("Gateway mode disables CLI fallback (handled by gateway).\n");
+    }
+  }
 
   for (let passIndex = 0; passIndex < maxPasses; passIndex += 1) {
     let quotaFailures = 0;
@@ -617,7 +935,13 @@ async function runWithFallback(
 
       process.stderr.write(`Using account: ${name}\n`);
 
-      const result = await runCodexOnce(codexBin, codexArgs, accountDir, options.fallback);
+      const result = await runCodexOnce(
+        codexBin,
+        codexArgs,
+        accountDir,
+        fallbackEnabled,
+        gatewayUrl ? { OPENAI_BASE_URL: gatewayUrl } : {}
+      );
       lastExitCode = result.exitCode;
 
       if (result.exitCode === 0) {
@@ -633,7 +957,7 @@ async function runWithFallback(
         return;
       }
 
-      if (!options.fallback) {
+      if (!fallbackEnabled) {
         updateAccountStatus(baseDir, name, (previous) => ({
           ...previous,
           lastAttemptAtMs: attemptAtMs,
@@ -676,7 +1000,7 @@ async function runWithFallback(
       }
     }
 
-    if (!options.fallback) {
+    if (!fallbackEnabled) {
       process.exit(lastExitCode);
       return;
     }
