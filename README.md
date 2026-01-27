@@ -117,6 +117,16 @@ Gateway mode keeps the Codex session open while switching accounts on quota erro
 cao gateway start
 ```
 
+Tune upstream retry/backoff (for transient 5xx/network errors):
+
+```bash
+cao gateway start \
+  --upstream-retries 2 \
+  --upstream-retry-base-ms 200 \
+  --upstream-retry-max-ms 2000 \
+  --upstream-retry-jitter-ms 120
+```
+
 For troubleshooting, you can pass through the current Codex auth without overriding it:
 
 ```bash
