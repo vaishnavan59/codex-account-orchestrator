@@ -4,6 +4,7 @@ dist/
 npm-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+.serena/
 
 # Runtime data
 .codex-account-orchestrator/
