@@ -24,7 +24,7 @@ import { inspectAccounts, type AccountInspection } from "./account_inspector";
 import { updateAccountStatus } from "./account_status_store";
 import { isCodexLoggedIn, runCodexLogin } from "./codex_auth";
 import { AUTH_FILE_NAME } from "./constants";
-import { disableGatewayConfig, getCodexConfigPath } from "./gateway/codex_config";
+import { disableGatewayConfig, enableGatewayConfig, getCodexConfigPath } from "./gateway/codex_config";
 import { AccountPool } from "./gateway/account_pool";
 import { loadGatewayConfig, resolveGatewayConfig, saveGatewayConfig } from "./gateway/gateway_config";
 import { startGatewayServer } from "./gateway/server";
@@ -579,7 +579,9 @@ gateway
   .option("--base-url <url>", "Gateway base URL", "http://127.0.0.1:4319")
   .action((options: { baseUrl: string }) => {
     disableGatewayConfig();
+    enableGatewayConfig({ baseUrl: options.baseUrl });
     const result = enableGatewayShim(options.baseUrl);
+    process.stdout.write(`Codex config updated: ${getCodexConfigPath()}\n`);
     process.stdout.write(`Codex shim installed: ${result.shimPath}\n`);
     process.stdout.write(`Real codex: ${result.realCodexPath}\n`);
     if (!result.inPath) {

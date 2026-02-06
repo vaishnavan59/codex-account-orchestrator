@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.1] - 2026-02-06
+
+### Fixed
+
+- `cao gateway enable` now updates `~/.codex/config.toml` to route Codex via the configured gateway URL
+- Gateway config update now ensures `~/.codex/` exists before writing `config.toml`
+
 ## [1.4.0] - 2026-01-27
 
 ### Added

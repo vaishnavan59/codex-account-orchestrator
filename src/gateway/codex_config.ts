@@ -10,6 +10,7 @@ export interface CodexConfigUpdate {
 
 export function enableGatewayConfig(update: CodexConfigUpdate): void {
   const configPath = getCodexConfigPath();
+  fs.mkdirSync(path.dirname(configPath), { recursive: true });
   const original = fs.existsSync(configPath) ? fs.readFileSync(configPath, "utf8") : "";
 
   ensureBackup(configPath, original);
