@@ -106,6 +106,12 @@ Iniciar gateway:
 cao gateway start
 ```
 
+En macOS, `cao gateway start` también exporta `OPENAI_BASE_URL` mediante `launchctl` (para que Codex Desktop lanzado desde Dock/Finder también use el gateway). Puedes desactivarlo con:
+
+```bash
+cao gateway start --no-app-env
+```
+
 Ejecutar vía gateway (fallback del CLI desactivado):
 
 ```bash

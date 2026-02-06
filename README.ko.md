@@ -107,6 +107,12 @@ cao gateway start
 cao run --gateway
 ```
 
+macOS에서는 `cao gateway start`가 `launchctl`로 `OPENAI_BASE_URL`도 함께 export 합니다. (Dock/Finder로 켠 Codex 앱도 게이트웨이를 타게 하려는 목적입니다.) 필요하면 아래로 끌 수 있습니다:
+
+```bash
+cao gateway start --no-app-env
+```
+
 ## 동작 방식
 
 계정별 디렉터리 구조:

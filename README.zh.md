@@ -106,6 +106,12 @@ cao status --report json   # JSON 报告
 cao gateway start
 ```
 
+在 macOS 上，`cao gateway start` 也会通过 `launchctl` 导出 `OPENAI_BASE_URL`（这样从 Dock/Finder 启动的 Codex 桌面版也会走网关）。如需关闭：
+
+```bash
+cao gateway start --no-app-env
+```
+
 通过网关运行（CLI 自动切换关闭）：
 
 ```bash

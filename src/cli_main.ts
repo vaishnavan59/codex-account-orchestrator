@@ -30,6 +30,7 @@ import { loadGatewayConfig, resolveGatewayConfig, saveGatewayConfig } from "./ga
 import { startGatewayServer } from "./gateway/server";
 import { disableGatewayShim, enableGatewayShim } from "./gateway/codex_shim";
 import type { GatewayConfig } from "./gateway/gateway_config";
+import { applyLaunchctlEnv } from "./gateway/launchctl_env";
 import { getAccountDir, getBaseDir } from "./paths";
 import { loadRegistry } from "./registry_store";
 import { runCodexOnce } from "./process_runner";
@@ -86,6 +87,7 @@ interface GatewayStartOptions {
   upstreamRetryJitterMs: string;
   save: boolean;
   passthroughAuth?: boolean;
+  appEnv: boolean;
 }
 
 const program = new Command();
@@ -493,6 +495,10 @@ gateway
   .option("--upstream-retry-max-ms <ms>", "Max delay for upstream retries", "2000")
   .option("--upstream-retry-jitter-ms <ms>", "Jitter for upstream retries", "120")
   .option("--passthrough-auth", "Do not override Authorization header")
+  .option(
+    "--no-app-env",
+    "Do not export OPENAI_BASE_URL via launchctl for GUI apps (macOS only)"
+  )
   .option("--save", "Persist options to gateway.json")
   .action((options: GatewayStartOptions) => {
     const baseDir = getBaseDir(program.opts().dataDir);
@@ -528,18 +534,50 @@ gateway
       return;
     }
 
+    const gatewayClientBaseUrl = formatGatewayClientBaseUrl(merged);
+    const shouldExportAppEnv = options.appEnv && process.platform === "darwin";
+    const appEnv = shouldExportAppEnv
+      ? applyLaunchctlEnv("OPENAI_BASE_URL", gatewayClientBaseUrl)
+      : undefined;
+
     const server = startGatewayServer(pool, merged);
 
     process.stdout.write(
       `Gateway started on http://${merged.bindAddress}:${merged.port} (upstream ${merged.baseUrl})\n`
     );
+    if (appEnv && !appEnv.applied) {
+      process.stderr.write(
+        `Warning: failed to export OPENAI_BASE_URL via launchctl (${appEnv.error ?? "unknown"}).\n`
+      );
+    }
+    if (appEnv?.applied) {
+      process.stdout.write(
+        `Exported OPENAI_BASE_URL for GUI apps via launchctl: ${gatewayClientBaseUrl}\n`
+      );
+      process.stdout.write(
+        "Note: Codex Desktop must be fully quit (Cmd+Q) and relaunched to pick up new env.\n"
+      );
+    }
 
-    process.on("SIGINT", () => {
+    let cleanedUp = false;
+    const cleanup = (exitCode: number): void => {
+      if (cleanedUp) {
+        return;
+      }
+      cleanedUp = true;
+
+      if (appEnv) {
+        appEnv.restore();
+      }
+
       server.close(() => {
         process.stdout.write("Gateway stopped.\n");
-        process.exit(0);
+        process.exit(exitCode);
       });
-    });
+    };
+
+    process.on("SIGINT", () => cleanup(0));
+    process.on("SIGTERM", () => cleanup(0));
   });
 
 gateway
@@ -1287,6 +1325,19 @@ function buildGatewayOverrides(options: GatewayStartOptions): Partial<GatewayCon
   }
 
   return overrides;
+}
+
+function formatGatewayClientBaseUrl(config: GatewayConfig): string {
+  const rawHost = config.bindAddress.trim();
+  const host =
+    rawHost === "0.0.0.0"
+      ? "127.0.0.1"
+      : rawHost === "::"
+        ? "::1"
+        : rawHost;
+
+  const hostPart = host.includes(":") && !host.startsWith("[") ? `[${host}]` : host;
+  return `http://${hostPart}:${config.port}`;
 }
 
 async function runWithFallback(

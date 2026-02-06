@@ -107,6 +107,12 @@ cao gateway start
 cao run --gateway
 ```
 
+macOS では `cao gateway start` 実行時に `launchctl` へ `OPENAI_BASE_URL` も設定します（Dock/Finder から起動した Codex Desktop もゲートウェイ経由にするため）。無効化する場合:
+
+```bash
+cao gateway start --no-app-env
+```
+
 ## 仕組み
 
 アカウントごとのディレクトリ:
